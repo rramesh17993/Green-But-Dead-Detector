@@ -1,0 +1,13 @@
+# Production dependencies for Green-But-Dead Detector
+# Python 3.9+ required
+
+prometheus-api-client==0.5.3
+PyYAML==6.0.1
+requests==2.31.0
+pydantic==2.5.0
+python-dateutil==2.8.2
+structlog==24.1.0
+colorama==0.4.6
+
+# Optional: Slack notifications
+slack-sdk==3.26.1

@@ -1,0 +1,144 @@
+# ==========================================
+# Kubernetes CronJob for Green-But-Dead Detector
+# ==========================================
+#
+# Runs the detector every 5 minutes to check for green-but-dead conditions.
+# This is the recommended deployment mode: safe, simple, and effective.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: green-but-dead-detector
+  namespace: monitoring
+  labels:
+    app: green-but-dead-detector
+    component: detector
+spec:
+  # Run every 5 minutes
+  schedule: "*/5 * * * *"
+  # Keep last 3 successful and 1 failed jobs for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  # Don't start new job if previous one is still running
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata:
+      labels:
+        app: green-but-dead-detector
+        component: detector
+    spec:
+      # Job should complete within 2 minutes
+      activeDeadlineSeconds: 120
+      # Clean up completed pods after 1 hour
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: green-but-dead-detector
+            component: detector
+          annotations:
+            # Prometheus scraping (optional)
+            prometheus.io/scrape: "false"
+        spec:
+          # Use service account for RBAC (if needed)
+          # serviceAccountName: green-but-dead-detector
+          restartPolicy: Never
+          containers:
+            - name: detector
+              image: green-but-dead-detector:latest
+              imagePullPolicy: IfNotPresent
+              # Command
+              command:
+                - python
+                - src/main.py
+                - --config
+                - /config/detector-policy.yaml
+                - --log-level
+                - INFO
+              # Resource limits
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "256Mi"
+                  cpu: "200m"
+              # Mount configuration
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+              # Environment variables
+              env:
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+                  # Optional: Slack webhook for notifications
+                  # - name: SLACK_WEBHOOK_URL
+                  #   valueFrom:
+                  #     secretKeyRef:
+                  #       name: green-but-dead-detector-secrets
+                  #       key: slack-webhook-url
+          volumes:
+            - name: config
+              configMap:
+                name: green-but-dead-detector-config
+
+# Optional: Service Account for RBAC
+# Uncomment if the detector needs to query Kubernetes API
+#
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: green-but-dead-detector
+#   namespace: monitoring
+#   labels:
+#     app: green-but-dead-detector
+---
+
+
+# Optional: Deployment mode (long-running service)
+# Use this instead of CronJob if you want continuous monitoring
+#
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: green-but-dead-detector
+#   namespace: monitoring
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: green-but-dead-detector
+#   template:
+#     metadata:
+#       labels:
+#         app: green-but-dead-detector
+#     spec:
+#       containers:
+#       - name: detector
+#         image: green-but-dead-detector:latest
+#         command:
+#         - /bin/sh
+#         - -c
+#         - |
+#           while true; do
+#             python src/main.py --config /config/detector-policy.yaml
+#             sleep 300  # Run every 5 minutes
+#           done
+#         resources:
+#           requests:
+#             memory: "128Mi"
+#             cpu: "100m"
+#           limits:
+#             memory: "256Mi"
+#             cpu: "200m"
+#         volumeMounts:
+#         - name: config
+#           mountPath: /config
+#           readOnly: true
+#       volumes:
+#       - name: config
+#         configMap:
+#           name: green-but-dead-detector-config
+---
+

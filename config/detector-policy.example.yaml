@@ -1,0 +1,156 @@
+# ==========================================
+# Green-But-Dead Detector Policy Configuration
+# ==========================================
+#
+# This file defines when and how to detect the "green-but-dead" failure mode:
+# - System appears healthy (low errors, normal resources)
+# - But users experience significant performance degradation
+# - Something is masking the real problem (retries, queues, etc.)
+
+# Service being monitored
+service: checkout-api
+# Prometheus connection settings
+prometheus:
+  url: http://prometheus:9090
+  timeout: 30
+  verify_ssl: true
+  # Optional: Add authentication headers
+  # headers:
+  #   Authorization: Bearer YOUR_TOKEN
+# ==========================================
+# SYMPTOMS: What hurts users?
+# ==========================================
+symptoms:
+  # Latency-based symptoms
+  latency:
+    # Percentage increase in latency percentiles
+    p50_increase_pct: 25 # Alert if p50 increases by 25%
+    p95_increase_pct: 30 # Alert if p95 increases by 30%
+    p99_increase_pct: 40 # Alert if p99 increases by 40%
+    # How long must the increase persist?
+    sustained_for: 5m # Must be sustained for 5 minutes
+    # Tail latency divergence (p99 - p50)
+    # If p99 is much higher than p50, some requests are very slow
+    tail_divergence_threshold: 0.5 # 500ms divergence
+  # Throughput-based symptoms (optional)
+  throughput:
+    rps_drop_pct: 20 # Alert if RPS drops by 20%
+    queue_depth_max: 1000 # Alert if queue exceeds 1000
+    sustained_for: 5m
+# ==========================================
+# ILLUSIONS: What makes it look healthy?
+# ==========================================
+illusions:
+  # Availability metrics that mislead
+  availability:
+    error_rate_below: 1.0 # Error rate below 1% looks healthy
+    # success_rate_above: 99.0  # Success rate above 99% looks healthy
+  # Resource metrics that mislead
+  resources:
+    cpu_below: 60.0 # CPU below 60% looks healthy
+    memory_below: 80.0 # Memory below 80% looks healthy
+    # io_wait_below: 10.0       # IO wait below 10% looks healthy
+# ==========================================
+# MASKING: What's hiding the problem?
+# ==========================================
+masking:
+  # Retry-based masking
+  retries:
+    multiplier: 2.0 # Retries 2x normal baseline
+    # absolute_threshold: 10.0  # Or absolute threshold (retries/sec)
+  # Queue-based masking
+  queues:
+    depth_trend: increasing # Queue growing
+    saturation_pct: 85.0 # Queue at 85% capacity
+    # growth_rate_pct: 10.0     # Growing by 10% per minute
+  # Connection pool masking
+  connections:
+    pool_saturation: 90.0 # 90% of connections in use
+    # wait_time_increase_pct: 50  # Wait time increased 50%
+# ==========================================
+# CONFIDENCE: How sure should we be?
+# ==========================================
+confidence:
+  # Minimum number of signals required to trigger detection
+  min_signals: 3
+  # Weight of each signal type in confidence calculation
+  # Higher weight = more important for detection
+  weights:
+    latency: 2.0 # Latency signals count double
+    masking: 1.5 # Masking signals are strong indicators
+    illusions: 1.0 # Illusions confirm but don't drive
+    throughput: 1.0 # Throughput changes are moderate signals
+# ==========================================
+# METRIC QUERIES: Custom PromQL (optional)
+# ==========================================
+# If not specified, default queries will be built automatically.
+# Uncomment and customize these if your metrics have different names.
+
+# metric_queries:
+#   # Latency percentiles
+#   latency_p50: >
+#     histogram_quantile(0.50,
+#       rate(http_request_duration_seconds_bucket{job="checkout-api"}[5m]))
+#   
+#   latency_p95: >
+#     histogram_quantile(0.95,
+#       rate(http_request_duration_seconds_bucket{job="checkout-api"}[5m]))
+#   
+#   latency_p99: >
+#     histogram_quantile(0.99,
+#       rate(http_request_duration_seconds_bucket{job="checkout-api"}[5m]))
+#   
+#   # Error rate (percentage)
+#   error_rate: >
+#     sum(rate(http_requests_total{job="checkout-api",status=~"5.."}[5m]))
+#     / sum(rate(http_requests_total{job="checkout-api"}[5m])) * 100
+#   
+#   # Request rate
+#   request_rate: >
+#     sum(rate(http_requests_total{job="checkout-api"}[5m]))
+#   
+#   # CPU usage (percentage)
+#   cpu_usage: >
+#     sum(rate(container_cpu_usage_seconds_total{pod=~"checkout-api.*"}[5m]))
+#     / sum(container_spec_cpu_quota{pod=~"checkout-api.*"}
+#     / container_spec_cpu_period{pod=~"checkout-api.*"}) * 100
+#   
+#   # Memory usage (percentage)
+#   memory_usage: >
+#     sum(container_memory_usage_bytes{pod=~"checkout-api.*"})
+#     / sum(container_spec_memory_limit_bytes{pod=~"checkout-api.*"}) * 100
+#   
+#   # Retry rate
+#   retry_rate: >
+#     sum(rate(http_request_retries_total{job="checkout-api"}[5m]))
+#   
+#   # Queue depth
+#   queue_depth: >
+#     sum(queue_depth{job="checkout-api"})
+#   
+#   # Connection pool usage (percentage)
+#   connection_pool_usage: >
+#     sum(connection_pool_active{job="checkout-api"})
+#     / sum(connection_pool_max{job="checkout-api"}) * 100
+
+# ==========================================
+# TIME WINDOWS
+# ==========================================
+# How far back to look for current data
+lookback_window: 15m
+# How far back to look for baseline calculation
+baseline_window: 1h
+
+# ==========================================
+# NOTES
+# ==========================================
+# This configuration is intentionally explicit and commented.
+# Tune these values based on your service's behavior:
+#
+# - Start with conservative thresholds (higher percentages)
+# - Observe false positive rate
+# - Gradually tighten thresholds
+# - Different services may need different configs
+#
+# The goal is NOT perfect accuracy.
+# The goal is catching the contradiction when everything looks green.

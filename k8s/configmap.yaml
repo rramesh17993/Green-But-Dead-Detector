@@ -1,0 +1,18 @@
+# ==========================================
+# Kubernetes ConfigMap for Green-But-Dead Detector
+# ==========================================
+#
+# This ConfigMap contains the detection policy configuration.
+# Mount this as a volume in the CronJob to make config changes
+# without rebuilding the container image.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: green-but-dead-detector-config
+  namespace: monitoring
+  labels:
+    app: green-but-dead-detector
+    component: config
+data:
+  detector-policy.yaml: "# Service being monitored\nservice: checkout-api\n\n# Prometheus connection\nprometheus:\n  url: http://prometheus-server.monitoring.svc.cluster.local:80\n  timeout: 30\n  verify_ssl: false\n\n# Detection thresholds\nsymptoms:\n  latency:\n    p95_increase_pct: 30\n    p99_increase_pct: 40\n    sustained_for: 5m\n    tail_divergence_threshold: 0.5\n  \n  throughput:\n    rps_drop_pct: 20\n    sustained_for: 5m\n\nillusions:\n  availability:\n    error_rate_below: 1.0\n  \n  resources:\n    cpu_below: 60.0\n    memory_below: 80.0\n\nmasking:\n  retries:\n    multiplier: 2.0\n  \n  queues:\n    depth_trend: increasing\n    saturation_pct: 85.0\n  \n  connections:\n    pool_saturation: 90.0\n\nconfidence:\n  min_signals: 3\n  weights:\n    latency: 2.0\n    masking: 1.5\n    illusions: 1.0\n    throughput: 1.0\n\nlookback_window: 15m\nbaseline_window: 1h\n"

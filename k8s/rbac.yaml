@@ -1,0 +1,85 @@
+# ==========================================
+# RBAC Configuration (Optional)
+# ==========================================
+#
+# Only needed if your detector needs to:
+# - Query Kubernetes API
+# - Read secrets
+# - Access other cluster resources
+#
+# For basic Prometheus-only detection, RBAC is NOT required.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: green-but-dead-detector
+  namespace: monitoring
+  labels:
+    app: green-but-dead-detector
+---
+# Role: What permissions within the namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: green-but-dead-detector
+  namespace: monitoring
+rules:
+  # Read ConfigMaps (for dynamic config reload)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  # Read Secrets (for credentials if needed)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  # Read Pods (for context about what's running)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+# RoleBinding: Bind the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: green-but-dead-detector
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: green-but-dead-detector
+subjects:
+  - kind: ServiceAccount
+    name: green-but-dead-detector
+    namespace: monitoring
+
+# ClusterRole: For cross-namespace access (if needed)
+# Uncomment if detector monitors services across multiple namespaces
+#
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: green-but-dead-detector
+# rules:
+# - apiGroups: [""]
+#   resources: ["pods", "services"]
+#   verbs: ["get", "list", "watch"]
+# - apiGroups: ["apps"]
+#   resources: ["deployments", "statefulsets"]
+#   verbs: ["get", "list", "watch"]
+---
+
+
+# ClusterRoleBinding: Bind cluster role to service account
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: green-but-dead-detector
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: green-but-dead-detector
+# subjects:
+# - kind: ServiceAccount
+#   name: green-but-dead-detector
+#   namespace: monitoring
+---
+
